@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	mock "github.com/stretchr/testify/mock"
 )
 
 func Test_makeRequest(t *testing.T) {
@@ -41,7 +41,7 @@ func Test_makeResponse_BadReader(t *testing.T) {
 
 	err := testTG.makeResponse(&http.Response{
 		Body: &errReader{},
-	})
+	}, nil)
 	assert.NotNil(t, err)
 	assert.EqualError(t, err, "test")
 }
@@ -80,9 +80,25 @@ func Test_makeResponse_Cases(t *testing.T) {
 			Body: ioutil.NopCloser(bytes.NewBuffer(table.responseBody)),
 		}
 
-		err := testTG.makeResponse(clientResponse)
+		err := testTG.makeResponse(clientResponse, nil)
 		assert.EqualErrorf(t, err, table.clientError, "%d", tt)
 	}
+}
+
+func Test_makeResponse_Update(t *testing.T) {
+	testTG := &tg{}
+
+	testUser := &TGUser{
+		ID:        1,
+		FirstName: "test",
+	}
+	updateUser := &TGUser{}
+
+	err := testTG.makeResponse(&http.Response{
+		Body: ioutil.NopCloser(bytes.NewBuffer([]byte(`{"ok":true,"result":{"id":1,"first_name":"test"}}`))),
+	}, updateUser)
+	assert.Nil(t, err)
+	assert.Equal(t, updateUser, testUser)
 }
 
 func Test_makeResponse_OK(t *testing.T) {
@@ -90,27 +106,43 @@ func Test_makeResponse_OK(t *testing.T) {
 
 	err := testTG.makeResponse(&http.Response{
 		Body: ioutil.NopCloser(bytes.NewBuffer([]byte(`{"ok":true}`))),
-	})
+	}, nil)
 	assert.Nil(t, err)
 }
 
 func Test_GetMe(t *testing.T) {
 	testTG := &tg{}
 
-	err := testTG.GetMe(nil) //nolint
+	user, err := testTG.GetMe(nil) //nolint
 	assert.EqualError(t, err, "net/http: nil Context")
+	assert.Nil(t, user)
 
 	testHTTPClient := &mockHTTPClient{}
 	testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(nil, errors.New("test"))
 	testTG.http = testHTTPClient
-	err = testTG.GetMe(context.Background())
+	user, err = testTG.GetMe(context.Background())
 	assert.EqualError(t, err, "test")
+	assert.Nil(t, user)
 
 	testHTTPClient = &mockHTTPClient{}
 	testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(&http.Response{
 		Body: &errReader{},
 	}, nil)
 	testTG.http = testHTTPClient
-	err = testTG.GetMe(context.Background())
+	user, err = testTG.GetMe(context.Background())
 	assert.EqualError(t, err, "test")
+	assert.Nil(t, user)
+
+	testUser := &TGUser{
+		ID:        1,
+		FirstName: "test",
+	}
+	testHTTPClient = &mockHTTPClient{}
+	testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(&http.Response{
+		Body: ioutil.NopCloser(bytes.NewBuffer([]byte(`{"ok":true,"result":{"id":1,"first_name":"test"}}`))),
+	}, nil)
+	testTG.http = testHTTPClient
+	user, err = testTG.GetMe(context.Background())
+	assert.Nil(t, err)
+	assert.Equal(t, user, testUser)
 }

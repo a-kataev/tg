@@ -13,18 +13,55 @@ import (
 
 var tgAPIServer = "https://api.telegram.org"
 
+type TGUser struct {
+	ID        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	UserName  string `json:"username,omitempty"`
+}
+
+type TGChat struct {
+	ChatID    int64  `json:"chat_id,omitempty"`
+	Text      string `json:"text,omitempty"`
+	ParseMode string `json:"parse_mode,omitempty"`
+}
+
+type TGMessage struct {
+	MessageID int `json:"message_id"`
+	Date      int `json:"date"`
+}
+
+type TGAPIResponse struct {
+	Result interface{} `json:"result,omitempty"`
+	TGAPIResponseError
+}
+
+type TGAPIResponseError struct {
+	Ok          bool   `json:"ok"`
+	ErrorCode   int    `json:"error_code,omitempty"`
+	Description string `json:"description,omitempty"`
+	Parameters  struct {
+		RetryAfter int `json:"retry_after,omitempty"`
+	} `json:"parameters,omitempty"`
+}
+
+func (r TGAPIResponseError) Error() string {
+	return r.Description
+}
+
+type tgAPIMethod string
+
+const (
+	methodGetMe       tgAPIMethod = "getMe"
+	methodSendMessage tgAPIMethod = "sendMessage"
+)
+
 type TG interface {
-	GetMe(ctx context.Context) error
-	SendMessage(ctx context.Context, chatID int64, message string) error
+	GetMe(ctx context.Context) (*TGUser, error)
+	SendMessage(ctx context.Context, chatID int64, message string) (*TGMessage, error)
 }
 
 type httpClient interface {
 	Do(*http.Request) (*http.Response, error)
-}
-
-type tg struct {
-	http     httpClient
-	endpoint string
 }
 
 func NewTG(token string) TG {
@@ -46,12 +83,25 @@ func NewTGWithClient(token string, client *http.Client) TG {
 	}
 }
 
-type tgAPIMethod string
+type tg struct {
+	http     httpClient
+	endpoint string
+}
 
-const (
-	methodGetMe       tgAPIMethod = "getMe"
-	methodSendMessage tgAPIMethod = "sendMessage"
-)
+func (_ *tg) makeMessage(chatID int64, text string) (io.Reader, error) {
+	chat := &TGChat{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: "markdown",
+	}
+
+	body, err := json.Marshal(chat)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes.NewReader(body), nil
+}
 
 func (t *tg) makeRequest(ctx context.Context, method tgAPIMethod, reader io.Reader) (*http.Request, error) {
 	url := t.endpoint + string(method)
@@ -65,91 +115,69 @@ func (t *tg) makeRequest(ctx context.Context, method tgAPIMethod, reader io.Read
 	return req, nil
 }
 
-type TGAPIResponse struct {
-	Method      string `json:"_method,omitempty"`
-	Ok          bool   `json:"ok"`
-	ErrorCode   int    `json:"error_code,omitempty"`
-	Description string `json:"description,omitempty"`
-	Parameters  struct {
-		MigrateToChatID int64 `json:"migrate_to_chat_id,omitempty"`
-		RetryAfter      int   `json:"retry_after,omitempty"`
-	} `json:"parameters,omitempty"`
-}
-
-func (r *TGAPIResponse) Error() string {
-	return r.Description
-}
-
-func (_ *tg) makeResponse(resp *http.Response) error {
+func (_ *tg) makeResponse(resp *http.Response, result interface{}) error {
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 	resp.Body.Close()
 
-	apiResp := &TGAPIResponse{}
+	apiResp := &TGAPIResponse{
+		Result: result,
+	}
 
 	if err := json.Unmarshal(body, apiResp); err != nil {
 		return err
 	}
 
 	if !apiResp.Ok {
-		return apiResp
+		return apiResp.TGAPIResponseError
 	}
 
 	return nil
 }
 
-func (t *tg) GetMe(ctx context.Context) error {
+func (t *tg) GetMe(ctx context.Context) (*TGUser, error) {
 	req, err := t.makeRequest(ctx, methodGetMe, nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := t.http.Do(req)
-	if err != nil {
-		return err
-	}
-
-	return t.makeResponse(resp)
-}
-
-type tgAPIMessage struct {
-	ChatID    int64  `json:"chat_id,omitempty"`
-	Text      string `json:"text,omitempty"`
-	ParseMode string `json:"parse_mode,omitempty"`
-}
-
-func (_ *tg) makeMessage(chatID int64, text string) (io.Reader, error) {
-	msg := &tgAPIMessage{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: "markdown",
-	}
-
-	body, err := json.Marshal(msg)
 	if err != nil {
 		return nil, err
 	}
 
-	return bytes.NewReader(body), nil
+	resp, err := t.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	tgUser := &TGUser{}
+
+	if err := t.makeResponse(resp, tgUser); err != nil {
+		return nil, err
+	}
+
+	return tgUser, nil
 }
 
-func (t *tg) SendMessage(ctx context.Context, chatID int64, message string) error {
+func (t *tg) SendMessage(ctx context.Context, chatID int64, message string) (*TGMessage, error) {
 	msg, err := t.makeMessage(chatID, message)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req, err := t.makeRequest(ctx, methodSendMessage, msg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	resp, err := t.http.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return t.makeResponse(resp)
+	tgMessage := &TGMessage{}
+
+	if err := t.makeResponse(resp, tgMessage); err != nil {
+		return nil, err
+	}
+
+	return tgMessage, nil
 }
