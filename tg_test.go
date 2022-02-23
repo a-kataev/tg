@@ -15,39 +15,50 @@ import (
 )
 
 func Test_makeRequest(t *testing.T) {
-	testTG := &tg{}
+	testTG := &TG{
+		http:     nil,
+		endpoint: "",
+	}
 
-	request, err := testTG.makeRequest(nil, tgAPIMethod(""), nil) //nolint
+	request, err := testTG.makeRequest(nil, apiMethod(""), nil) //nolint
 	assert.Nil(t, request)
-	assert.EqualError(t, err, "net/http: nil Context")
+	assert.EqualError(t, err, "makeMessage: request: net/http: nil Context")
 
-	request, err = testTG.makeRequest(context.Background(), tgAPIMethod(""), nil)
-	assert.IsType(t, &http.Request{}, request)
+	request, err = testTG.makeRequest(context.Background(), apiMethod(""), nil)
+	assert.IsType(t, &http.Request{}, request) //nolint
 	assert.Nil(t, err)
 }
+
+var errTest = errors.New("test")
 
 type errReader struct{}
 
 func (e *errReader) Read(p []byte) (n int, err error) {
-	return 0, errors.New("test")
+	return 0, errTest
 }
 
 func (e *errReader) Close() error {
-	return errors.New("test")
+	return errTest
 }
 
 func Test_makeResponse_BadReader(t *testing.T) {
-	testTG := &tg{}
+	testTG := &TG{
+		http:     nil,
+		endpoint: "",
+	}
 
-	err := testTG.makeResponse(&http.Response{
+	err := testTG.makeResponse(&http.Response{ //nolint
 		Body: &errReader{},
 	}, nil)
 	assert.NotNil(t, err)
-	assert.EqualError(t, err, "test")
+	assert.EqualError(t, err, "makeResponse: body: test")
 }
 
 func Test_makeResponse_Cases(t *testing.T) {
-	testTG := &tg{}
+	testTG := &TG{
+		http:     nil,
+		endpoint: "",
+	}
 
 	tables := []struct {
 		responseBody []byte
@@ -55,11 +66,11 @@ func Test_makeResponse_Cases(t *testing.T) {
 	}{
 		{
 			responseBody: []byte{},
-			clientError:  "unexpected end of JSON input",
+			clientError:  "makeResponse: json: unexpected end of JSON input",
 		},
 		{
 			responseBody: []byte("test"),
-			clientError:  "invalid character 'e' in literal true (expecting 'r')",
+			clientError:  "makeResponse: json: invalid character 'e' in literal true (expecting 'r')",
 		},
 		{
 			responseBody: []byte("{}"),
@@ -71,12 +82,12 @@ func Test_makeResponse_Cases(t *testing.T) {
 		},
 		{
 			responseBody: []byte(`{"ok":"test"}`),
-			clientError:  "json: cannot unmarshal string into Go struct field TGAPIResponse.ok of type bool",
+			clientError:  "makeResponse: json: json: cannot unmarshal string into Go struct field APIResponse.ok of type bool",
 		},
 	}
 
 	for tt, table := range tables {
-		clientResponse := &http.Response{
+		clientResponse := &http.Response{ //nolint
 			Body: ioutil.NopCloser(bytes.NewBuffer(table.responseBody)),
 		}
 
@@ -86,61 +97,80 @@ func Test_makeResponse_Cases(t *testing.T) {
 }
 
 func Test_makeResponse_Update(t *testing.T) {
-	testTG := &tg{}
+	testTG := &TG{
+		http:     nil,
+		endpoint: "",
+	}
 
-	testUser := &TGUser{
+	testUser := &User{
 		ID:        1,
 		FirstName: "test",
+		UserName:  "",
 	}
-	updateUser := &TGUser{}
+	updateUser := &User{
+		ID:        0,
+		FirstName: "",
+		UserName:  "",
+	}
 
-	err := testTG.makeResponse(&http.Response{
-		Body: ioutil.NopCloser(bytes.NewBuffer([]byte(`{"ok":true,"result":{"id":1,"first_name":"test"}}`))),
-	}, updateUser)
+	err := testTG.makeResponse(
+		&http.Response{ //nolint
+			Body: ioutil.NopCloser(bytes.NewBuffer([]byte(`{"ok":true,"result":{"id":1,"first_name":"test"}}`))),
+		}, updateUser)
 	assert.Nil(t, err)
 	assert.Equal(t, updateUser, testUser)
 }
 
 func Test_makeResponse_OK(t *testing.T) {
-	testTG := &tg{}
+	testTG := &TG{
+		http:     nil,
+		endpoint: "",
+	}
 
-	err := testTG.makeResponse(&http.Response{
-		Body: ioutil.NopCloser(bytes.NewBuffer([]byte(`{"ok":true}`))),
-	}, nil)
+	err := testTG.makeResponse(
+		&http.Response{ //nolint
+			Body: ioutil.NopCloser(bytes.NewBuffer([]byte(`{"ok":true}`))),
+		}, nil)
 	assert.Nil(t, err)
 }
 
 func Test_GetMe(t *testing.T) {
-	testTG := &tg{}
+	testTG := &TG{
+		http:     nil,
+		endpoint: "",
+	}
 
 	user, err := testTG.GetMe(nil) //nolint
-	assert.EqualError(t, err, "net/http: nil Context")
+	assert.EqualError(t, err, "makeMessage: request: net/http: nil Context")
 	assert.Nil(t, user)
 
-	testHTTPClient := &mockHTTPClient{}
-	testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(nil, errors.New("test"))
+	testHTTPClient := &mockHTTPClient{} //nolint
+	testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(nil, errTest)
 	testTG.http = testHTTPClient
 	user, err = testTG.GetMe(context.Background())
-	assert.EqualError(t, err, "test")
+	assert.EqualError(t, err, "GetMe: http: test")
 	assert.Nil(t, user)
 
-	testHTTPClient = &mockHTTPClient{}
-	testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(&http.Response{
-		Body: &errReader{},
-	}, nil)
+	testHTTPClient = &mockHTTPClient{} //nolint
+	testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(
+		&http.Response{ //nolint
+			Body: &errReader{},
+		}, nil)
 	testTG.http = testHTTPClient
 	user, err = testTG.GetMe(context.Background())
-	assert.EqualError(t, err, "test")
+	assert.EqualError(t, err, "makeResponse: body: test")
 	assert.Nil(t, user)
 
-	testUser := &TGUser{
+	testUser := &User{
 		ID:        1,
 		FirstName: "test",
+		UserName:  "",
 	}
-	testHTTPClient = &mockHTTPClient{}
-	testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(&http.Response{
-		Body: ioutil.NopCloser(bytes.NewBuffer([]byte(`{"ok":true,"result":{"id":1,"first_name":"test"}}`))),
-	}, nil)
+	testHTTPClient = &mockHTTPClient{} //nolint
+	testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(
+		&http.Response{ //nolint
+			Body: ioutil.NopCloser(bytes.NewBuffer([]byte(`{"ok":true,"result":{"id":1,"first_name":"test"}}`))),
+		}, nil)
 	testTG.http = testHTTPClient
 	user, err = testTG.GetMe(context.Background())
 	assert.Nil(t, err)
