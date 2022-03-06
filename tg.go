@@ -12,28 +12,33 @@ import (
 
 var apiServer = "https://api.telegram.org" //nolint
 
+// User -
 type User struct {
 	ID        int64  `json:"id"`
 	FirstName string `json:"first_name"` //nolint
 	UserName  string `json:"username,omitempty"`
 }
 
+// Chat -
 type Chat struct {
 	ChatID    int64  `json:"chat_id,omitempty"` //nolint
 	Text      string `json:"text,omitempty"`
 	ParseMode string `json:"parse_mode,omitempty"` //nolint
 }
 
+// Message -
 type Message struct {
 	MessageID int `json:"message_id"` //nolint
 	Date      int `json:"date"`
 }
 
+// APIResponse -
 type APIResponse struct {
 	Result interface{} `json:"result,omitempty"`
 	APIResponseError
 }
 
+// APIResponseError -
 type APIResponseError struct {
 	Ok          bool   `json:"ok"`
 	ErrorCode   int    `json:"error_code,omitempty"` //nolint
@@ -65,6 +70,7 @@ type httpClient interface {
 
 var _ tg = (*TG)(nil)
 
+// NewTG -
 func NewTG(token string) *TG {
 	client := http.DefaultClient
 	client.Timeout = 2 * time.Second    //nolint
@@ -76,6 +82,7 @@ func NewTG(token string) *TG {
 	return NewTGWithClient(token, client)
 }
 
+// NewTGWithClient -
 func NewTGWithClient(token string, client *http.Client) *TG {
 	return &TG{
 		http:     client,
@@ -83,6 +90,7 @@ func NewTGWithClient(token string, client *http.Client) *TG {
 	}
 }
 
+// TG -
 type TG struct {
 	http     httpClient
 	endpoint string
@@ -142,6 +150,7 @@ func (t *TG) makeResponse(resp *http.Response, result interface{}) error {
 	return nil
 }
 
+// GetMe -
 func (t *TG) GetMe(ctx context.Context) (*User, error) {
 	req, err := t.makeRequest(ctx, apiMethodGetMe, nil)
 	if err != nil {
@@ -166,6 +175,7 @@ func (t *TG) GetMe(ctx context.Context) (*User, error) {
 	return user, nil
 }
 
+// SendMessage -
 func (t *TG) SendMessage(ctx context.Context, chatID int64, text string) (*Message, error) {
 	reader, err := t.makeMessage(chatID, text)
 	if err != nil {
