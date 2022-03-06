@@ -66,11 +66,11 @@ func Test_makeResponse_Cases(t *testing.T) {
 	}{
 		{
 			responseBody: []byte{},
-			clientError:  "makeResponse: json: unexpected end of JSON input",
+			clientError:  "makeResponse: body: EOF",
 		},
 		{
 			responseBody: []byte("test"),
-			clientError:  "makeResponse: json: invalid character 'e' in literal true (expecting 'r')",
+			clientError:  "makeResponse: body: invalid character 'e' in literal true (expecting 'r')",
 		},
 		{
 			responseBody: []byte("{}"),
@@ -82,7 +82,7 @@ func Test_makeResponse_Cases(t *testing.T) {
 		},
 		{
 			responseBody: []byte(`{"ok":"test"}`),
-			clientError:  "makeResponse: json: json: cannot unmarshal string into Go struct field APIResponse.ok of type bool",
+			clientError:  "makeResponse: body: json: cannot unmarshal string into Go struct field APIResponse.ok of type bool",
 		},
 	}
 

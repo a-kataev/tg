@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 )
@@ -118,13 +117,6 @@ func (t *TG) makeRequest(ctx context.Context, method apiMethod, reader io.Reader
 }
 
 func (t *TG) makeResponse(resp *http.Response, result interface{}) error {
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("makeResponse: body: %w", err)
-	}
-
-	resp.Body.Close()
-
 	apiResp := &APIResponse{
 		Result: result,
 		APIResponseError: APIResponseError{
@@ -137,8 +129,10 @@ func (t *TG) makeResponse(resp *http.Response, result interface{}) error {
 		},
 	}
 
-	if err := json.Unmarshal(body, apiResp); err != nil {
-		return fmt.Errorf("makeResponse: json: %w", err)
+	defer resp.Body.Close()
+
+	if err := json.NewDecoder(resp.Body).Decode(apiResp); err != nil {
+		return fmt.Errorf("makeResponse: body: %w", err)
 	}
 
 	if !apiResp.Ok {
