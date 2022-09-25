@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -68,39 +70,119 @@ type httpClient interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-var _ tg = (*TG)(nil)
-
-// NewTG -
-func NewTG(token string) *TG {
-	client := http.DefaultClient
-	client.Timeout = 2 * time.Second    //nolint
-	client.Transport = &http.Transport{ //nolint
-		MaxIdleConns:    10,               //nolint
-		IdleConnTimeout: 10 * time.Second, //nolint
-	}
-
-	return NewTGWithClient(token, client)
-}
-
-// NewTGWithClient -
-func NewTGWithClient(token string, client *http.Client) *TG {
-	return &TG{
-		http:     client,
-		endpoint: fmt.Sprintf("%s/bot%s/", apiServer, token),
-	}
-}
-
 // TG -
 type TG struct {
-	http     httpClient
-	endpoint string
+	http      httpClient
+	endpoint  string
+	parseMode string
+}
+
+var _ tg = (*TG)(nil)
+
+var (
+	ErrAPIServerInvalidScheme = errors.New("APIServer: invalid url scheme")
+	ErrAPIServerEmptyHost     = errors.New("APIServer: empty host")
+)
+
+func APIServer(server string) func(t *TG) error {
+	return func(t *TG) error {
+		u, err := url.ParseRequestURI(server)
+		if err != nil {
+			return fmt.Errorf("APIServer: %w", err)
+		}
+
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return ErrAPIServerInvalidScheme
+		}
+
+		if u.Host == "" {
+			return ErrAPIServerEmptyHost
+		}
+
+		t.endpoint = server
+
+		return nil
+	}
+}
+
+var ErrHTTPClientNil = errors.New("HTTPClient: client is nil")
+
+func HTTPClient(client *http.Client) func(t *TG) error {
+	return func(t *TG) error {
+		if client == nil {
+			return ErrHTTPClientNil
+		}
+
+		t.http = client
+
+		return nil
+	}
+}
+
+type ParseMode string
+
+const (
+	MarkdownV2ParseMode = "MarkdownV2"
+	MarkdownParseMode   = "Markdown"
+	HTMLParseMode       = "HTML"
+)
+
+var parseModeList = []ParseMode{ //nolint
+	MarkdownV2ParseMode,
+	MarkdownParseMode,
+	HTMLParseMode,
+}
+
+var ErrParseModeNil = errors.New("MessageParseMode: unknown mode")
+
+func MessageParseMode(mode ParseMode) func(t *TG) error {
+	return func(t *TG) error {
+		for _, m := range parseModeList {
+			if mode == m {
+				t.parseMode = string(mode)
+
+				return nil
+			}
+		}
+
+		return ErrParseModeNil
+	}
+}
+
+// NewTG -
+func NewTG(token string, options ...func(t *TG) error) (*TG, error) {
+	t := &TG{
+		http:      nil,
+		endpoint:  apiServer,
+		parseMode: string(MarkdownParseMode),
+	}
+
+	for _, opt := range options {
+		if err := opt(t); err != nil {
+			return nil, err
+		}
+	}
+
+	if t.http == nil {
+		client := http.DefaultClient
+		client.Timeout = 2 * time.Second    //nolint
+		client.Transport = &http.Transport{ //nolint
+			MaxIdleConns:    10,               //nolint
+			IdleConnTimeout: 10 * time.Second, //nolint
+		}
+		t.http = client
+	}
+
+	t.endpoint += "/bot" + token + "/"
+
+	return t, nil
 }
 
 func (t *TG) makeMessage(chatID int64, text string) (io.Reader, error) {
 	chat := &Chat{
 		ChatID:    chatID,
 		Text:      text,
-		ParseMode: "markdown",
+		ParseMode: t.parseMode,
 	}
 
 	body, err := json.Marshal(chat)
@@ -114,7 +196,7 @@ func (t *TG) makeMessage(chatID int64, text string) (io.Reader, error) {
 func (t *TG) makeRequest(ctx context.Context, method apiMethod, reader io.Reader) (*http.Request, error) {
 	url := t.endpoint + string(method)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, reader)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, reader)
 	if err != nil {
 		return nil, fmt.Errorf("makeMessage: request: %w", err)
 	}
