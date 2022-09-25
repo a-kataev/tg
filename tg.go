@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var apiServer = "https://api.telegram.org" //nolint
+const apiServer = "https://api.telegram.org"
 
 // User -
 type User struct {
@@ -80,8 +80,8 @@ type TG struct {
 var _ tg = (*TG)(nil)
 
 var (
-	ErrAPIServerInvalidScheme = errors.New("APIServer: invalid url scheme")
-	ErrAPIServerEmptyHost     = errors.New("APIServer: empty host")
+	ErrInvalidScheme = errors.New("invalid scheme")
+	ErrEmptyHost     = errors.New("empty host")
 )
 
 func APIServer(server string) func(t *TG) error {
@@ -92,11 +92,11 @@ func APIServer(server string) func(t *TG) error {
 		}
 
 		if u.Scheme != "http" && u.Scheme != "https" {
-			return ErrAPIServerInvalidScheme
+			return fmt.Errorf("APIServer: %w", ErrInvalidScheme)
 		}
 
 		if u.Host == "" {
-			return ErrAPIServerEmptyHost
+			return fmt.Errorf("APIServer: %w", ErrEmptyHost)
 		}
 
 		t.endpoint = server
@@ -105,12 +105,12 @@ func APIServer(server string) func(t *TG) error {
 	}
 }
 
-var ErrHTTPClientNil = errors.New("HTTPClient: client is nil")
+var ErrClientNil = errors.New("client is nil")
 
 func HTTPClient(client *http.Client) func(t *TG) error {
 	return func(t *TG) error {
 		if client == nil {
-			return ErrHTTPClientNil
+			return fmt.Errorf("HTTPClient: %w", ErrClientNil)
 		}
 
 		t.http = client
@@ -133,7 +133,7 @@ var parseModeList = []ParseMode{ //nolint
 	HTMLParseMode,
 }
 
-var ErrParseModeNil = errors.New("MessageParseMode: unknown mode")
+var ErrModeUnknown = errors.New("unknown mode")
 
 func MessageParseMode(mode ParseMode) func(t *TG) error {
 	return func(t *TG) error {
@@ -145,7 +145,7 @@ func MessageParseMode(mode ParseMode) func(t *TG) error {
 			}
 		}
 
-		return ErrParseModeNil
+		return fmt.Errorf("MessageParseMode: %w", ErrModeUnknown)
 	}
 }
 
@@ -170,6 +170,7 @@ func NewTG(token string, options ...func(t *TG) error) (*TG, error) {
 			MaxIdleConns:    10,               //nolint
 			IdleConnTimeout: 10 * time.Second, //nolint
 		}
+
 		t.http = client
 	}
 
