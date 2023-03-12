@@ -14,6 +14,34 @@ import (
 
 const apiServer = "https://api.telegram.org"
 
+type apiMethod string
+
+const (
+	apiMethodGetMe       apiMethod = "getMe"
+	apiMethodSendMessage apiMethod = "sendMessage"
+)
+
+type ParseMode string
+
+const (
+	MarkdownV2ParseMode = "MarkdownV2"
+	MarkdownParseMode   = "Markdown"
+	HTMLParseMode       = "HTML"
+)
+
+var parseModeList = []ParseMode{ //nolint
+	MarkdownV2ParseMode,
+	MarkdownParseMode,
+	HTMLParseMode,
+}
+
+var (
+	ErrInvalidScheme = errors.New("invalid scheme")
+	ErrEmptyHost     = errors.New("empty host")
+	ErrClientNil     = errors.New("client is nil")
+	ErrModeUnknown   = errors.New("unknown mode")
+)
+
 // User -
 type User struct {
 	ID        int64  `json:"id"`
@@ -54,37 +82,9 @@ func (r APIResponseError) Error() string {
 	return r.Description
 }
 
-type apiMethod string
+type Option func(t *TG) error
 
-const (
-	apiMethodGetMe       apiMethod = "getMe"
-	apiMethodSendMessage apiMethod = "sendMessage"
-)
-
-type tg interface {
-	GetMe(ctx context.Context) (*User, error)
-	SendMessage(ctx context.Context, chatID int64, text string) (*Message, error)
-}
-
-type httpClient interface {
-	Do(*http.Request) (*http.Response, error)
-}
-
-// TG -
-type TG struct {
-	http      httpClient
-	endpoint  string
-	parseMode string
-}
-
-var _ tg = (*TG)(nil)
-
-var (
-	ErrInvalidScheme = errors.New("invalid scheme")
-	ErrEmptyHost     = errors.New("empty host")
-)
-
-func APIServer(server string) func(t *TG) error {
+func APIServer(server string) Option {
 	return func(t *TG) error {
 		u, err := url.ParseRequestURI(server)
 		if err != nil {
@@ -105,9 +105,7 @@ func APIServer(server string) func(t *TG) error {
 	}
 }
 
-var ErrClientNil = errors.New("client is nil")
-
-func HTTPClient(client *http.Client) func(t *TG) error {
+func HTTPClient(client *http.Client) Option {
 	return func(t *TG) error {
 		if client == nil {
 			return fmt.Errorf("HTTPClient: %w", ErrClientNil)
@@ -119,23 +117,7 @@ func HTTPClient(client *http.Client) func(t *TG) error {
 	}
 }
 
-type ParseMode string
-
-const (
-	MarkdownV2ParseMode = "MarkdownV2"
-	MarkdownParseMode   = "Markdown"
-	HTMLParseMode       = "HTML"
-)
-
-var parseModeList = []ParseMode{ //nolint
-	MarkdownV2ParseMode,
-	MarkdownParseMode,
-	HTMLParseMode,
-}
-
-var ErrModeUnknown = errors.New("unknown mode")
-
-func MessageParseMode(mode ParseMode) func(t *TG) error {
+func MessageParseMode(mode ParseMode) Option {
 	return func(t *TG) error {
 		for _, m := range parseModeList {
 			if mode == m {
@@ -149,8 +131,26 @@ func MessageParseMode(mode ParseMode) func(t *TG) error {
 	}
 }
 
+type tg interface {
+	GetMe(ctx context.Context) (*User, error)
+	SendMessage(ctx context.Context, chatID int64, text string) (*Message, error)
+}
+
+type httpClient interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
+// TG -
+type TG struct {
+	http      httpClient
+	endpoint  string
+	parseMode string
+}
+
+var _ tg = (*TG)(nil)
+
 // NewTG -
-func NewTG(token string, options ...func(t *TG) error) (*TG, error) {
+func NewTG(token string, options ...Option) (*TG, error) {
 	t := &TG{
 		http:      nil,
 		endpoint:  apiServer,
@@ -208,17 +208,8 @@ func (t *TG) makeRequest(ctx context.Context, method apiMethod, reader io.Reader
 }
 
 func (t *TG) makeResponse(resp *http.Response, result interface{}) error {
-	apiResp := &APIResponse{
-		Result: result,
-		APIResponseError: APIResponseError{
-			Ok:          false,
-			ErrorCode:   0,
-			Description: "",
-			Parameters: struct {
-				RetryAfter int "json:\"retry_after,omitempty\""
-			}{},
-		},
-	}
+	apiResp := new(APIResponse)
+	apiResp.Result = result
 
 	defer resp.Body.Close()
 
@@ -245,11 +236,7 @@ func (t *TG) GetMe(ctx context.Context) (*User, error) {
 		return nil, fmt.Errorf("GetMe: http: %w", err)
 	}
 
-	user := &User{
-		ID:        0,
-		FirstName: "",
-		UserName:  "",
-	}
+	user := new(User)
 
 	if err := t.makeResponse(resp, user); err != nil {
 		return nil, err
@@ -275,10 +262,7 @@ func (t *TG) SendMessage(ctx context.Context, chatID int64, text string) (*Messa
 		return nil, fmt.Errorf("SendMessage: http: %w", err)
 	}
 
-	message := &Message{
-		MessageID: 0,
-		Date:      0,
-	}
+	message := new(Message)
 
 	if err := t.makeResponse(resp, message); err != nil {
 		return nil, err
