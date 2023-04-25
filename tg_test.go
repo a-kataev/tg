@@ -1,6 +1,6 @@
 //go:generate mockery --name httpClient --structname mockHTTPClient --inpackage --filename tg_mock_test.go
 
-package tg
+package tg //nolint:testpackage
 
 import (
 	"bytes"
@@ -30,7 +30,7 @@ func Test_makeRequest(t *testing.T) {
 
 	t.Run("1", func(t *testing.T) {
 		t.Parallel()
-		request, err := testTG.makeRequest(nil, apiMethod(""), nil) //nolint
+		request, err := testTG.makeRequest(nil, apiMethod(""), nil) //nolint:staticcheck
 		assert.Nil(t, request)
 		assert.EqualError(t, err, "makeMessage: request: net/http: nil Context")
 	})
@@ -38,7 +38,7 @@ func Test_makeRequest(t *testing.T) {
 	t.Run("2", func(t *testing.T) {
 		t.Parallel()
 		request, err := testTG.makeRequest(context.Background(), apiMethod(""), nil)
-		assert.IsType(t, &http.Request{}, request) //nolint
+		assert.IsType(t, &http.Request{}, request)
 		assert.Nil(t, err)
 	})
 }
@@ -47,7 +47,7 @@ var errTest = errors.New("test")
 
 type errReader struct{}
 
-func (e *errReader) Read(p []byte) (int, error) {
+func (e *errReader) Read(_ []byte) (int, error) {
 	return 0, errTest
 }
 
@@ -59,7 +59,7 @@ func Test_makeResponse_BadReader(t *testing.T) {
 	testTG := newTestTG()
 
 	t.Parallel()
-	err := testTG.makeResponse(&http.Response{ //nolint
+	err := testTG.makeResponse(&http.Response{
 		Body: &errReader{},
 	}, nil)
 	assert.NotNil(t, err)
@@ -102,7 +102,7 @@ func Test_makeResponse_Cases(t *testing.T) {
 	test := func(tn int, table table) {
 		t.Run(strconv.Itoa(tn), func(t *testing.T) {
 			t.Parallel()
-			clientResponse := &http.Response{ //nolint
+			clientResponse := &http.Response{
 				Body: io.NopCloser(bytes.NewBuffer(table.responseBody)),
 			}
 
@@ -133,7 +133,7 @@ func Test_makeResponse_Update(t *testing.T) {
 	t.Parallel()
 
 	err := testTG.makeResponse(
-		&http.Response{ //nolint
+		&http.Response{
 			Body: io.NopCloser(bytes.NewBuffer([]byte(`{"ok":true,"result":{"id":1,"first_name":"test"}}`))),
 		}, updateUser)
 	assert.Nil(t, err)
@@ -146,7 +146,7 @@ func Test_makeResponse_OK(t *testing.T) {
 	t.Parallel()
 
 	err := testTG.makeResponse(
-		&http.Response{ //nolint
+		&http.Response{
 			Body: io.NopCloser(bytes.NewBuffer([]byte(`{"ok":true}`))),
 		}, nil)
 	assert.Nil(t, err)
@@ -158,15 +158,15 @@ func Test_GetMe(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
 		t.Parallel()
 		testTG := newTestTG()
-		user, err := testTG.GetMe(nil) //nolint
-		assert.EqualError(t, err, "makeMessage: request: net/http: nil Context")
+		user, err := testTG.GetMe(nil) //nolint:staticcheck
+		assert.EqualError(t, err, "GetMe: makeMessage: request: net/http: nil Context")
 		assert.Nil(t, user)
 	})
 
 	t.Run("2", func(t *testing.T) {
 		t.Parallel()
 		testTG := newTestTG()
-		testHTTPClient := &mockHTTPClient{} //nolint
+		testHTTPClient := &mockHTTPClient{} //nolint:exhaustruct
 		testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(nil, errTest)
 		testTG.http = testHTTPClient
 		user, err := testTG.GetMe(context.Background())
@@ -177,14 +177,14 @@ func Test_GetMe(t *testing.T) {
 	t.Run("3", func(t *testing.T) {
 		t.Parallel()
 		testTG := newTestTG()
-		testHTTPClient := &mockHTTPClient{} //nolint
+		testHTTPClient := &mockHTTPClient{} //nolint:exhaustruct
 		testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(
-			&http.Response{ //nolint
+			&http.Response{
 				Body: &errReader{},
 			}, nil)
 		testTG.http = testHTTPClient
 		user, err := testTG.GetMe(context.Background())
-		assert.EqualError(t, err, "makeResponse: body: test")
+		assert.EqualError(t, err, "GetMe: makeResponse: body: test")
 		assert.Nil(t, user)
 	})
 
@@ -196,9 +196,9 @@ func Test_GetMe(t *testing.T) {
 			FirstName: "test",
 			UserName:  "",
 		}
-		testHTTPClient := &mockHTTPClient{} //nolint
+		testHTTPClient := &mockHTTPClient{} //nolint:exhaustruct
 		testHTTPClient.On("Do", mock.Anything, mock.Anything).Return(
-			&http.Response{ //nolint
+			&http.Response{
 				Body: io.NopCloser(bytes.NewBuffer([]byte(`{"ok":true,"result":{"id":1,"first_name":"test"}}`))),
 			}, nil)
 		testTG.http = testHTTPClient

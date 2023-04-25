@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"time"
 )
 
@@ -29,7 +30,7 @@ const (
 	HTMLParseMode       = "HTML"
 )
 
-var parseModeList = []ParseMode{ //nolint
+var parseModeList = []ParseMode{ //nolint:gochecknoglobals
 	MarkdownV2ParseMode,
 	MarkdownParseMode,
 	HTMLParseMode,
@@ -42,39 +43,39 @@ var (
 	ErrModeUnknown   = errors.New("unknown mode")
 )
 
-// User -
+// User .
 type User struct {
 	ID        int64  `json:"id"`
-	FirstName string `json:"first_name"` //nolint
+	FirstName string `json:"first_name"`
 	UserName  string `json:"username,omitempty"`
 }
 
-// Chat -
+// Chat .
 type Chat struct {
-	ChatID    int64  `json:"chat_id,omitempty"` //nolint
+	ChatID    int64  `json:"chat_id,omitempty"`
 	Text      string `json:"text,omitempty"`
-	ParseMode string `json:"parse_mode,omitempty"` //nolint
+	ParseMode string `json:"parse_mode,omitempty"`
 }
 
-// Message -
+// Message .
 type Message struct {
-	MessageID int `json:"message_id"` //nolint
+	MessageID int `json:"message_id"`
 	Date      int `json:"date"`
 }
 
-// APIResponse -
+// APIResponse .
 type APIResponse struct {
 	Result interface{} `json:"result,omitempty"`
 	APIResponseError
 }
 
-// APIResponseError -
+// APIResponseError .
 type APIResponseError struct {
 	Ok          bool   `json:"ok"`
-	ErrorCode   int    `json:"error_code,omitempty"` //nolint
+	ErrorCode   int    `json:"error_code,omitempty"`
 	Description string `json:"description,omitempty"`
 	Parameters  struct {
-		RetryAfter int `json:"retry_after,omitempty"` //nolint
+		RetryAfter int `json:"retry_after,omitempty"`
 	} `json:"parameters,omitempty"`
 }
 
@@ -82,24 +83,44 @@ func (r APIResponseError) Error() string {
 	return r.Description
 }
 
-type Option func(t *TG) error
+var regexpBotToken = regexp.MustCompile(`/bot([0-9]+):([a-zA-Z0-9]+)/`)
+
+type redactError struct {
+	err error
+}
+
+func newRedactError(err error) error {
+	return &redactError{
+		err: err,
+	}
+}
+
+func (e *redactError) Error() string {
+	return regexpBotToken.ReplaceAllString(e.err.Error(), "/bot*****/")
+}
+
+func (e *redactError) Unwrap() error {
+	return e.err
+}
+
+type Option func(*TG) error
 
 func APIServer(server string) Option {
-	return func(t *TG) error {
-		u, err := url.ParseRequestURI(server)
+	return func(tg *TG) error {
+		url, err := url.ParseRequestURI(server)
 		if err != nil {
 			return fmt.Errorf("APIServer: %w", err)
 		}
 
-		if u.Scheme != "http" && u.Scheme != "https" {
+		if url.Scheme != "http" && url.Scheme != "https" {
 			return fmt.Errorf("APIServer: %w", ErrInvalidScheme)
 		}
 
-		if u.Host == "" {
+		if url.Host == "" {
 			return fmt.Errorf("APIServer: %w", ErrEmptyHost)
 		}
 
-		t.endpoint = server
+		tg.endpoint = server
 
 		return nil
 	}
@@ -140,7 +161,7 @@ type httpClient interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-// TG -
+// TG .
 type TG struct {
 	http      httpClient
 	endpoint  string
@@ -149,34 +170,36 @@ type TG struct {
 
 var _ tg = (*TG)(nil)
 
-// NewTG -
+//nolint:gochecknoglobals,gomnd
+var defaultHTTPClient = &http.Client{
+	Timeout: 2 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:    10,
+		IdleConnTimeout: 10 * time.Second,
+	},
+}
+
+// NewTG .
 func NewTG(token string, options ...Option) (*TG, error) {
-	t := &TG{
+	tg := &TG{
 		http:      nil,
 		endpoint:  apiServer,
 		parseMode: string(MarkdownParseMode),
 	}
 
 	for _, opt := range options {
-		if err := opt(t); err != nil {
-			return nil, err
+		if err := opt(tg); err != nil {
+			return nil, fmt.Errorf("TG: %w", err)
 		}
 	}
 
-	if t.http == nil {
-		client := http.DefaultClient
-		client.Timeout = 2 * time.Second    //nolint
-		client.Transport = &http.Transport{ //nolint
-			MaxIdleConns:    10,               //nolint
-			IdleConnTimeout: 10 * time.Second, //nolint
-		}
-
-		t.http = client
+	if tg.http == nil {
+		tg.http = defaultHTTPClient
 	}
 
-	t.endpoint += "/bot" + token + "/"
+	tg.endpoint += "/bot" + token + "/"
 
-	return t, nil
+	return tg, nil
 }
 
 func (t *TG) makeMessage(chatID int64, text string) (io.Reader, error) {
@@ -224,48 +247,48 @@ func (t *TG) makeResponse(resp *http.Response, result interface{}) error {
 	return nil
 }
 
-// GetMe -
+// GetMe .
 func (t *TG) GetMe(ctx context.Context) (*User, error) {
 	req, err := t.makeRequest(ctx, apiMethodGetMe, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("GetMe: %w", err)
 	}
 
 	resp, err := t.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("GetMe: http: %w", err)
+		return nil, fmt.Errorf("GetMe: http: %w", newRedactError(err))
 	}
 
 	user := new(User)
 
 	if err := t.makeResponse(resp, user); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("GetMe: %w", err)
 	}
 
 	return user, nil
 }
 
-// SendMessage -
+// SendMessage .
 func (t *TG) SendMessage(ctx context.Context, chatID int64, text string) (*Message, error) {
 	reader, err := t.makeMessage(chatID, text)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("SendMessage: %w", err)
 	}
 
 	req, err := t.makeRequest(ctx, apiMethodSendMessage, reader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("SendMessage: %w", err)
 	}
 
 	resp, err := t.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("SendMessage: http: %w", err)
+		return nil, fmt.Errorf("SendMessage: http: %w", newRedactError(err))
 	}
 
 	message := new(Message)
 
 	if err := t.makeResponse(resp, message); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("SendMessage: %w", err)
 	}
 
 	return message, nil
