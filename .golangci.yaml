@@ -18,6 +18,7 @@ linters-settings:
   exhaustruct:
     exclude:
       - 'http\.'
+      - tg.Chat
   wsl:
     allow-assign-and-anything: true
   tagliatelle:

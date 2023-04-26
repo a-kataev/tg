@@ -15,9 +15,8 @@ import (
 
 func newTestTG() *TG {
 	return &TG{
-		http:      nil,
-		endpoint:  "",
-		parseMode: "",
+		http:     nil,
+		endpoint: "",
 	}
 }
 

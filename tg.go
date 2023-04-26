@@ -52,9 +52,61 @@ type User struct {
 
 // Chat .
 type Chat struct {
-	ChatID    int64  `json:"chat_id,omitempty"`
-	Text      string `json:"text,omitempty"`
-	ParseMode string `json:"parse_mode,omitempty"`
+	ChatID                int64  `json:"chat_id"`
+	Text                  string `json:"text"`
+	ParseMode             string `json:"parse_mode,omitempty"`
+	MessageThreadID       int64  `json:"message_thread_id,omitempty"`
+	DisableWebPagePreview bool   `json:"disable_web_page_preview,omitempty"`
+	DisableNotification   bool   `json:"disable_notification,omitempty"`
+	ProtectContent        bool   `json:"protect_content,omitempty"`
+}
+
+type ChatOption func(*Chat) error
+
+func ChatParseMode(mode ParseMode) ChatOption {
+	return func(ch *Chat) error {
+		for _, item := range parseModeList {
+			if mode == item {
+				ch.ParseMode = string(mode)
+
+				return nil
+			}
+		}
+
+		return fmt.Errorf("MessageParseMode: %w", ErrModeUnknown)
+	}
+}
+
+func ChatMessageThreadID(threadID int64) ChatOption {
+	return func(ch *Chat) error {
+		ch.MessageThreadID = threadID
+
+		return nil
+	}
+}
+
+func ChathDisableWebPagePreview(disable bool) ChatOption {
+	return func(ch *Chat) error {
+		ch.DisableWebPagePreview = disable
+
+		return nil
+	}
+}
+
+func ChathDisableNotification(disable bool) ChatOption {
+	return func(ch *Chat) error {
+		ch.DisableNotification = disable
+
+		return nil
+	}
+}
+
+func ChathProtectContent(protect bool) ChatOption {
+	return func(ch *Chat) error {
+		ch.ProtectContent = protect
+
+		return nil
+	}
 }
 
 // Message .
@@ -83,7 +135,7 @@ func (r APIResponseError) Error() string {
 	return r.Description
 }
 
-var regexpBotToken = regexp.MustCompile(`/bot([0-9]+):([a-zA-Z0-9]+)/`)
+var regexpBotToken = regexp.MustCompile(`/bot([\d]+):([\d\w]+)/`)
 
 type redactError struct {
 	err error
@@ -138,23 +190,9 @@ func HTTPClient(client *http.Client) Option {
 	}
 }
 
-func MessageParseMode(mode ParseMode) Option {
-	return func(t *TG) error {
-		for _, m := range parseModeList {
-			if mode == m {
-				t.parseMode = string(mode)
-
-				return nil
-			}
-		}
-
-		return fmt.Errorf("MessageParseMode: %w", ErrModeUnknown)
-	}
-}
-
 type tg interface {
 	GetMe(ctx context.Context) (*User, error)
-	SendMessage(ctx context.Context, chatID int64, text string) (*Message, error)
+	SendMessage(ctx context.Context, chatID int64, text string, opts ...ChatOption) (*Message, error)
 }
 
 type httpClient interface {
@@ -163,9 +201,8 @@ type httpClient interface {
 
 // TG .
 type TG struct {
-	http      httpClient
-	endpoint  string
-	parseMode string
+	http     httpClient
+	endpoint string
 }
 
 var _ tg = (*TG)(nil)
@@ -182,9 +219,8 @@ var defaultHTTPClient = &http.Client{
 // NewTG .
 func NewTG(token string, options ...Option) (*TG, error) {
 	tg := &TG{
-		http:      nil,
-		endpoint:  apiServer,
-		parseMode: string(MarkdownParseMode),
+		http:     nil,
+		endpoint: apiServer,
 	}
 
 	for _, opt := range options {
@@ -202,11 +238,16 @@ func NewTG(token string, options ...Option) (*TG, error) {
 	return tg, nil
 }
 
-func (t *TG) makeMessage(chatID int64, text string) (io.Reader, error) {
+func (t *TG) makeMessage(chatID int64, text string, opts ...ChatOption) (io.Reader, error) {
 	chat := &Chat{
-		ChatID:    chatID,
-		Text:      text,
-		ParseMode: t.parseMode,
+		ChatID: chatID,
+		Text:   text,
+	}
+
+	for _, opt := range opts {
+		if err := opt(chat); err != nil {
+			return nil, fmt.Errorf("makeMessage: option: %w", err)
+		}
 	}
 
 	body, err := json.Marshal(chat)
@@ -269,8 +310,8 @@ func (t *TG) GetMe(ctx context.Context) (*User, error) {
 }
 
 // SendMessage .
-func (t *TG) SendMessage(ctx context.Context, chatID int64, text string) (*Message, error) {
-	reader, err := t.makeMessage(chatID, text)
+func (t *TG) SendMessage(ctx context.Context, chatID int64, text string, opts ...ChatOption) (*Message, error) {
+	reader, err := t.makeMessage(chatID, text, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("SendMessage: %w", err)
 	}
