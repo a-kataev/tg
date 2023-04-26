@@ -1,5 +1,3 @@
-//go:generate mockery --name httpClient --structname mockHTTPClient --inpackage --filename tg_mock_test.go
-
 package tg //nolint:testpackage
 
 import (

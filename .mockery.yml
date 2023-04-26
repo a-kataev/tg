@@ -1,0 +1,11 @@
+with-expecter: False
+packages:
+  github.com/a-kataev/tg:
+    config:
+      all: False
+    interfaces:
+      httpClient:
+        config:
+          dir: .
+          filename: tg_mock_test.go
+          mockname: mockHTTPClient
