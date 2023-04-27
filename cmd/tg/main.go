@@ -50,22 +50,8 @@ func main() {
 		*token = os.Getenv("TG_TOKEN")
 	}
 
-	if *token == "" {
-		logFatal("empty token")
-	}
-
-	if *chatID < 1 {
-		logFatal("invalid chat id")
-	}
-
-	if *text == "" {
-		logFatal("empty text")
-	}
-
 	if *text == "-" {
-		const maxTextSize int64 = 4096
-
-		stdin, err := io.ReadAll(io.LimitReader(os.Stdin, maxTextSize))
+		stdin, err := io.ReadAll(io.LimitReader(os.Stdin, int64(tg.MaxTextSize)))
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
 				logFatal(err.Error())
@@ -92,9 +78,9 @@ func main() {
 	msg, err := tgb.SendMessage(ctx, *chatID, *text,
 		tg.ChatParseMode(tg.ParseMode(*parseMode)),
 		tg.ChatMessageThreadID(*messageThreadID),
-		tg.ChathDisableWebPagePreview(*disableWebPagePreview),
-		tg.ChathDisableNotification(*disableNotification),
-		tg.ChathProtectContent(*protectContent),
+		tg.ChatDisableWebPagePreview(*disableWebPagePreview),
+		tg.ChatDisableNotification(*disableNotification),
+		tg.ChatProtectContent(*protectContent),
 	)
 	if err != nil {
 		logFatal(err.Error())

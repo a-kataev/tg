@@ -37,10 +37,15 @@ var parseModeList = []ParseMode{ //nolint:gochecknoglobals
 }
 
 var (
-	ErrInvalidScheme = errors.New("invalid scheme")
-	ErrEmptyHost     = errors.New("empty host")
-	ErrClientNil     = errors.New("client is nil")
-	ErrModeUnknown   = errors.New("unknown mode")
+	ErrInvalidScheme   = errors.New("invalid scheme")
+	ErrEmptyHost       = errors.New("empty host")
+	ErrClientNil       = errors.New("client is nil")
+	ErrModeUnknown     = errors.New("unknown mode")
+	ErrInvalidToken    = errors.New("invalid token")
+	ErrInvalidThreadID = errors.New("invalid thread id")
+	ErrInvalidChatID   = errors.New("invalid chat id")
+	ErrEmptyText       = errors.New("empty text")
+	ErrExceedsMaxText  = errors.New("exeeds max text")
 )
 
 // User .
@@ -79,13 +84,17 @@ func ChatParseMode(mode ParseMode) ChatOption {
 
 func ChatMessageThreadID(threadID int64) ChatOption {
 	return func(ch *Chat) error {
+		if threadID < 0 {
+			return ErrInvalidThreadID
+		}
+
 		ch.MessageThreadID = threadID
 
 		return nil
 	}
 }
 
-func ChathDisableWebPagePreview(disable bool) ChatOption {
+func ChatDisableWebPagePreview(disable bool) ChatOption {
 	return func(ch *Chat) error {
 		ch.DisableWebPagePreview = disable
 
@@ -93,7 +102,7 @@ func ChathDisableWebPagePreview(disable bool) ChatOption {
 	}
 }
 
-func ChathDisableNotification(disable bool) ChatOption {
+func ChatDisableNotification(disable bool) ChatOption {
 	return func(ch *Chat) error {
 		ch.DisableNotification = disable
 
@@ -101,7 +110,7 @@ func ChathDisableNotification(disable bool) ChatOption {
 	}
 }
 
-func ChathProtectContent(protect bool) ChatOption {
+func ChatProtectContent(protect bool) ChatOption {
 	return func(ch *Chat) error {
 		ch.ProtectContent = protect
 
@@ -135,7 +144,10 @@ func (r APIResponseError) Error() string {
 	return r.Description
 }
 
-var regexpBotToken = regexp.MustCompile(`/bot([\d]+):([\d\w]+)/`)
+var (
+	regexpBotToken = regexp.MustCompile(`/bot([\d]+):([\d\w]+)/`)
+	regexpToken    = regexp.MustCompile(`^([\d]+):([\d\w]+)$`)
+)
 
 type redactError struct {
 	err error
@@ -218,6 +230,10 @@ var defaultHTTPClient = &http.Client{
 
 // NewTG .
 func NewTG(token string, options ...Option) (*TG, error) {
+	if !regexpToken.MatchString(token) {
+		return nil, fmt.Errorf("TG: %w", ErrInvalidToken)
+	}
+
 	tg := &TG{
 		http:     nil,
 		endpoint: apiServer,
@@ -309,8 +325,22 @@ func (t *TG) GetMe(ctx context.Context) (*User, error) {
 	return user, nil
 }
 
+const MaxTextSize int = 4096
+
 // SendMessage .
 func (t *TG) SendMessage(ctx context.Context, chatID int64, text string, opts ...ChatOption) (*Message, error) {
+	if chatID < 1 {
+		return nil, fmt.Errorf("SendMessage: %w", ErrInvalidChatID)
+	}
+
+	if text == "" {
+		return nil, fmt.Errorf("SendMessage: %w", ErrEmptyText)
+	}
+
+	if len(text) > MaxTextSize {
+		return nil, fmt.Errorf("SendMessage: %w", ErrExceedsMaxText)
+	}
+
 	reader, err := t.makeMessage(chatID, text, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("SendMessage: %w", err)
