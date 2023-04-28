@@ -2,6 +2,8 @@ project_name: tg
 builds:
   - id: tg
     main: ./cmd/tg
+    ldflags:
+      - -s -w
     binary: tg
     goos:
       - darwin
@@ -18,7 +20,6 @@ archives:
       - tg
     name_template: '{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     format: tar.gz
-    wrap_in_directory: false
     files:
       - xyz*
 checksum:
@@ -26,5 +27,3 @@ checksum:
   algorithm: sha256
 changelog:
   use: github-native
-source:
-  enabled: false

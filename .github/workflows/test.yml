@@ -1,0 +1,13 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  go-test:
+    uses: ./.github/workflows/go-test.yml
+  golangci-lint:
+    uses: ./.github/workflows/golangci-lint.yml

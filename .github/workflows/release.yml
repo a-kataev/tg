@@ -1,0 +1,17 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  go-test:
+    uses: ./.github/workflows/go-test.yml
+  golangci-lint:
+    uses: ./.github/workflows/golangci-lint.yml
+  goreleaser:
+    needs:
+      - go-test
+      - golangci-lint
+    uses: ./.github/workflows/goreleaser.yml
