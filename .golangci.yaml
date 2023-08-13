@@ -17,14 +17,22 @@ linters-settings:
     max-complexity: 15
   exhaustruct:
     exclude:
-      - 'http\.'
-      - tg.Chat
+      - 'net/http\..*'
+      - github.com/a-kataev/tg.Chat
   wsl:
     allow-assign-and-anything: true
   tagliatelle:
     case:
       rules:
         json: snake
+  depguard:
+    rules:
+      main:
+        allow:
+          - $gostd
+          - github.com/a-kataev/tg
+          - github.com/stretchr/testify/assert
+          - github.com/stretchr/testify/mock
 
 linters:
   fast: false
