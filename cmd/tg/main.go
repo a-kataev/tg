@@ -6,10 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/a-kataev/tg"
-	"golang.org/x/exp/slog"
 )
 
 func main() {
@@ -25,7 +25,7 @@ func main() {
 	disableNotification := fset.Bool("disable_notification", false, "disable notification")
 	protectContent := fset.Bool("protect_content", false, "protect content")
 
-	log := slog.New(slog.NewJSONHandler(os.Stdout))
+	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	logFatal := func(msg string) {
 		log.Error(msg)
