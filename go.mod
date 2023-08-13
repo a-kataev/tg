@@ -3,8 +3,8 @@ module github.com/a-kataev/tg
 go 1.21
 
 require (
-	github.com/stretchr/testify v1.8.3
-	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
+	github.com/stretchr/testify v1.8.4
+	golang.org/x/exp v0.0.0-20230811145659-89c5cff77bcb
 )
 
 require (
