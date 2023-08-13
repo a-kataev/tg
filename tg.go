@@ -43,7 +43,6 @@ var (
 	ErrModeUnknown     = errors.New("unknown mode")
 	ErrInvalidToken    = errors.New("invalid token")
 	ErrInvalidThreadID = errors.New("invalid thread id")
-	ErrInvalidChatID   = errors.New("invalid chat id")
 	ErrEmptyText       = errors.New("empty text")
 	ErrExceedsMaxText  = errors.New("exeeds max text")
 )
@@ -329,10 +328,6 @@ const MaxTextSize int = 4096
 
 // SendMessage .
 func (t *TG) SendMessage(ctx context.Context, chatID int64, text string, opts ...ChatOption) (*Message, error) {
-	if chatID < 1 {
-		return nil, fmt.Errorf("SendMessage: %w", ErrInvalidChatID)
-	}
-
 	if text == "" {
 		return nil, fmt.Errorf("SendMessage: %w", ErrEmptyText)
 	}
