@@ -145,8 +145,8 @@ func (r APIResponseError) Error() string {
 }
 
 var (
-	regexpBotToken = regexp.MustCompile(`/bot([\d]+):([\d\w]+)/`)
-	regexpToken    = regexp.MustCompile(`^([\d]+):([\d\w]+)$`)
+	regexpBotToken = regexp.MustCompile(`/bot([\d]+):([\d\w\-]+)/`)
+	regexpToken    = regexp.MustCompile(`^([\d]+):([\d\w\-]+)$`)
 )
 
 type redactError struct {
