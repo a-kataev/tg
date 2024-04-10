@@ -12,6 +12,12 @@ import (
 	"github.com/a-kataev/tg"
 )
 
+func logFatal(log *slog.Logger, msg string, args ...any) {
+	log.Error(msg, args...)
+
+	os.Exit(1)
+}
+
 func main() {
 	fset := flag.NewFlagSet("", flag.ContinueOnError)
 	fset.SetOutput(io.Discard)
@@ -27,12 +33,6 @@ func main() {
 
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	logFatal := func(msg string) {
-		log.Error(msg)
-
-		os.Exit(1)
-	}
-
 	err := fset.Parse(os.Args[1:])
 	if err != nil {
 		if errors.Is(flag.ErrHelp, err) {
@@ -43,7 +43,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		logFatal(err.Error())
+		logFatal(log, err.Error())
 	}
 
 	if *token == "" {
@@ -54,40 +54,40 @@ func main() {
 		stdin, err := io.ReadAll(io.LimitReader(os.Stdin, int64(tg.MaxTextSize)))
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
-				logFatal(err.Error())
+				logFatal(log, err.Error())
 			}
 		}
 
 		*text = string(stdin)
 	}
 
-	tgb, err := tg.NewTG(*token)
+	client, err := tg.NewClient(*token)
 	if err != nil {
-		logFatal(err.Error())
+		logFatal(log, err.Error())
 	}
 
 	ctx := context.Background()
 
-	bot, err := tgb.GetMe(ctx)
+	bot, err := client.GetMe(ctx)
 	if err != nil {
-		logFatal(err.Error())
+		logFatal(log, err.Error())
 	}
 
 	log = log.With(slog.String("bot_name", bot.UserName))
 
-	msg, err := tgb.SendMessage(ctx, *chatID, *text,
-		tg.ChatParseMode(tg.ParseMode(*parseMode)),
-		tg.ChatMessageThreadID(*messageThreadID),
-		tg.ChatDisableWebPagePreview(*disableWebPagePreview),
-		tg.ChatDisableNotification(*disableNotification),
-		tg.ChatProtectContent(*protectContent),
+	msg, err := client.SendMessage(ctx, *chatID, *text,
+		tg.ParseModeSendOption(tg.ParseMode(*parseMode)),
+		tg.MessageThreadIDSendOption(*messageThreadID),
+		tg.DisableWebPagePreviewSendOption(*disableWebPagePreview),
+		tg.DisableNotificationSendOption(*disableNotification),
+		tg.ProtectContentSendOption(*protectContent),
 	)
 	if err != nil {
-		logFatal(err.Error())
+		logFatal(log, err.Error())
 	}
 
 	log.Info("Success send message",
 		slog.Int64("chat_id", *chatID),
-		slog.Int("message_id", msg.MessageID),
+		slog.Any("message_id", msg.MessageID),
 	)
 }
