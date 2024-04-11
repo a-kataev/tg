@@ -8,6 +8,6 @@ on:
 
 jobs:
   go-test:
-    uses: ./.github/workflows/go-test.yml
+    uses: ./.github/workflows/_go-test.yml
   golangci-lint:
-    uses: ./.github/workflows/golangci-lint.yml
+    uses: ./.github/workflows/_golangci-lint.yml
