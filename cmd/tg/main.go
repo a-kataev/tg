@@ -12,8 +12,8 @@ import (
 	"github.com/a-kataev/tg"
 )
 
-func logFatal(log *slog.Logger, msg string, args ...any) {
-	log.Error(msg, args...)
+func logFatal(log *slog.Logger, msg string) {
+	log.Error(msg)
 
 	os.Exit(1)
 }
