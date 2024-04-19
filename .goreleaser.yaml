@@ -32,19 +32,19 @@ archives:
   - id: tgsend
     builds:
       - tgsend
-    name_template: '{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    name_template: 'tgsend_v{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     format: tar.gz
     files:
       - xyz*
   - id: tg
     builds:
       - tg
-    name_template: '{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    name_template: 'tg_v{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     format: tar.gz
     files:
       - xyz*
 checksum:
-  name_template: '{{ .ProjectName }}_v{{ .Version }}_checksums.txt'
+  name_template: 'v{{ .Version }}_checksums.txt'
   algorithm: sha256
 changelog:
   use: github-native
