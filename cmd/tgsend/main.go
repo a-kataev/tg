@@ -19,7 +19,7 @@ func logFatal(log *slog.Logger, msg string) {
 }
 
 func main() {
-	fset := flag.NewFlagSet("", flag.ContinueOnError)
+	fset := flag.NewFlagSet("tgsend", flag.ContinueOnError)
 	fset.SetOutput(io.Discard)
 
 	token := fset.String("token", "", "token (environment TG_TOKEN)")
