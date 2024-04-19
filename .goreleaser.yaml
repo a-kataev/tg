@@ -14,10 +14,31 @@ builds:
     ignore:
       - goos: linux
         goarch: arm64
+  - id: tg
+    main: ./cmd/tg
+    ldflags:
+      - -s -w
+    binary: tg
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
 archives:
   - id: tgsend
     builds:
       - tgsend
+    name_template: '{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    format: tar.gz
+    files:
+      - xyz*
+  - id: tg
+    builds:
+      - tg
     name_template: '{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     format: tar.gz
     files:
